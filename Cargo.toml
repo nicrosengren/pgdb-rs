@@ -1,0 +1,23 @@
+[package]
+name = "pgdb"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { version = "1", default-features = false  }
+thiserror = "2.0.3"
+rustls = { version = "0.23", default-features = false, features = [ "ring", "std" ] }
+
+tokio-postgres = "0.7"
+tokio-postgres-rustls = "0.13"
+
+diesel = { version = "2", default-features = false, features = [ "postgres_backend" ] }
+diesel_migrations = "2.2.0"
+futures-util = "0.3.31"
+tracing = "0.1.40"
+
+
+[dependencies.diesel-async]
+version = "0.5"
+default-features = false
+features = [ "deadpool", "postgres", "async-connection-wrapper" ]
