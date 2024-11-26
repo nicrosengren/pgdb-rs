@@ -11,3 +11,9 @@ pub enum Error {
     #[error("Database pool: {0}")]
     Pool(#[from] deadpool::PoolError),
 }
+
+impl Error {
+    pub fn is_not_found(&self) -> bool {
+        matches!(self, Self::Diesel(diesel::result::Error::NotFound))
+    }
+}
