@@ -1,7 +1,9 @@
 mod build_error;
 mod error;
-pub mod testing;
+mod optional_ext;
 mod tls;
+
+pub mod testing;
 
 use {
     diesel::{ConnectionError, ConnectionResult},
@@ -20,11 +22,12 @@ pub use {
     diesel, diesel_async,
     diesel_migrations::{embed_migrations, EmbeddedMigrations},
     error::*,
+    optional_ext::OptionalExt,
 };
 
 pub mod prelude {
     pub use {
-        super::{build_error::BuildError, diesel, diesel_async, error::Error},
+        super::{build_error::BuildError, diesel, diesel_async, error::Error, OptionalExt},
         diesel::migration::MigrationSource,
         diesel_migrations::{self, embed_migrations, EmbeddedMigrations},
     };
