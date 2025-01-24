@@ -1,6 +1,7 @@
 mod build_error;
 mod error;
 mod optional_ext;
+mod pagination;
 mod tls;
 
 pub mod testing;
@@ -23,6 +24,7 @@ pub use {
     diesel_migrations::{embed_migrations, EmbeddedMigrations},
     error::*,
     optional_ext::OptionalExt,
+    pagination::*,
 };
 
 pub mod prelude {
