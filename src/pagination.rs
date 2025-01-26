@@ -59,6 +59,12 @@ pub struct PaginatedQuery<T> {
 }
 
 impl<T> PaginatedQuery<T> {
+    pub fn page_size(mut self, page_size: i64) -> Self {
+        self.page_size = page_size;
+        self.offset = (self.page - 1) * page_size;
+        self
+    }
+
     pub async fn load_page<'a, U>(
         self,
         conn: &mut diesel_async::AsyncPgConnection,
