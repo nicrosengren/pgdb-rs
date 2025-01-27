@@ -13,8 +13,8 @@ tokio-postgres-rustls = "0.13"
 
 diesel = { version = "2", default-features = false, features = [ "postgres_backend" ] }
 diesel_migrations = "2.2.0"
-futures-util = "0.3.31"
 tracing = "0.1.40"
+futures-util = "0.3.31"
 
 
 [dependencies.diesel-async]

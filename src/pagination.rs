@@ -1,3 +1,8 @@
+use std::future::Future;
+
+use diesel_async::{methods::LoadQuery, return_futures::LoadFuture};
+use futures_util::{future::AndThen, TryFutureExt};
+
 pub const DEFAULT_PAGE_SIZE: i64 = 50;
 
 #[derive(Clone, Debug)]
@@ -65,31 +70,61 @@ impl<T> PaginatedQuery<T> {
         self
     }
 
-    pub async fn load_page<'a, U>(
+    pub fn load_page_asdasd<'query, 'conn, U>(
+        self,
+        conn: &'conn mut diesel_async::AsyncPgConnection,
+    ) -> impl Future<Output = diesel::QueryResult<Page<U>>> + use<'query, 'conn, U, T>
+    where
+        U: Send + 'conn,
+        Self: LoadQuery<'query, diesel_async::AsyncPgConnection, (U, i64)> + 'query,
+    {
+        let page_size = self.page_size;
+        let page = self.page;
+        // let res = diesel_async::RunQueryDsl::load::<(U, i64)>(self, conn).await?;
+        // let total_count = res.first().map(|x| x.1).unwrap_or(0);
+        // let data = res.into_iter().map(|x| x.0).collect();
+        // let page_count = (total_count as f64 / page_size as f64).ceil() as i64;
+
+        diesel_async::RunQueryDsl::load::<(U, i64)>(self, conn).map_ok(move |res| {
+            let total_count = res.first().map(|x| x.1).unwrap_or(0);
+            let data = res.into_iter().map(|x| x.0).collect();
+            let page_count = (total_count as f64 / page_size as f64).ceil() as i64;
+
+            Page {
+                data,
+                page,
+                page_size,
+                total_count,
+                page_count,
+            }
+        })
+    }
+
+    pub async fn load_page<'query, U>(
         self,
         conn: &mut diesel_async::AsyncPgConnection,
     ) -> diesel::QueryResult<Page<U>>
     where
-        T: 'a,
-        U: Send + 'a,
-        Self: diesel_async::methods::LoadQuery<'a, diesel_async::AsyncPgConnection, (U, i64)>,
+        U: Send,
+        Self: LoadQuery<'query, diesel_async::AsyncPgConnection, (U, i64)> + 'query,
     {
         let page_size = self.page_size;
         let page = self.page;
-        let results = diesel_async::RunQueryDsl::load::<(U, i64)>(self, conn).await?;
-        let total_count = results.first().map(|x| x.1).unwrap_or(0);
-        let data = results.into_iter().map(|x| x.0).collect();
-        let page_count = (total_count as f64 / page_size as f64).ceil() as i64;
-
+        // let res = diesel_async::RunQueryDsl::load::<(U, i64)>(self, conn).await?;
+        // let total_count = res.first().map(|x| x.1).unwrap_or(0);
+        // let data = res.into_iter().map(|x| x.0).collect();
+        // let page_count = (total_count as f64 / page_size as f64).ceil() as i64;
         Ok(Page {
-            data,
+            data: vec![],
             page,
             page_size,
-            total_count,
-            page_count,
+            total_count: 1,
+            page_count: 1,
         })
     }
 }
+
+impl<T, C> diesel::RunQueryDsl<C> for PaginatedQuery<T> where C: diesel::Connection {}
 
 impl<T: diesel::query_builder::Query> diesel::query_builder::Query for PaginatedQuery<T> {
     type SqlType = (T::SqlType, diesel::sql_types::BigInt);
