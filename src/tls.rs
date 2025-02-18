@@ -1,5 +1,5 @@
 use rustls::client::danger;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 // pub fn client_config() -> rustls::ClientConfig {
 //     use rustls::pki_types::{pem::PemObject, CertificateDer};
@@ -24,7 +24,12 @@ use std::sync::Arc;
 // }
 
 pub fn client_config() -> rustls::ClientConfig {
-    rustls::ClientConfig::builder()
+    static PROVIDER: OnceLock<Arc<rustls::crypto::CryptoProvider>> = OnceLock::new();
+    let provider = PROVIDER.get_or_init(|| Arc::new(rustls::crypto::ring::default_provider()));
+
+    rustls::ClientConfig::builder_with_provider(Arc::clone(provider))
+        .with_safe_default_protocol_versions()
+        .expect("pgdb::tls failed to use safe default protocol versions")
         .dangerous()
         .with_custom_certificate_verifier(Arc::new(CertVerifier))
         .with_no_client_auth()
