@@ -15,7 +15,7 @@ impl<T> Page<T> {
         self.data.iter()
     }
 
-    pub fn map_into<T2>(self, f: impl Fn(T) -> T2) -> Page<T2> {
+    pub fn map_into<T2>(self, f: impl FnMut(T) -> T2) -> Page<T2> {
         Page {
             data: self.data.into_iter().map(f).collect(),
             total_count: self.total_count,

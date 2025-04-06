@@ -9,19 +9,19 @@ pub mod testing;
 use {
     diesel::{ConnectionError, ConnectionResult},
     diesel_async::{
-        async_connection_wrapper::AsyncConnectionWrapper,
-        pooled_connection::{deadpool, AsyncDieselConnectionManager, ManagerConfig},
         AsyncPgConnection, SimpleAsyncConnection,
+        async_connection_wrapper::AsyncConnectionWrapper,
+        pooled_connection::{AsyncDieselConnectionManager, ManagerConfig, deadpool},
     },
     diesel_migrations::MigrationHarness,
-    futures_util::{future::BoxFuture, FutureExt},
+    futures_util::{FutureExt, future::BoxFuture},
     tracing::warn,
 };
 
 pub use {
     build_error::*,
     diesel, diesel_async,
-    diesel_migrations::{embed_migrations, EmbeddedMigrations},
+    diesel_migrations::{EmbeddedMigrations, embed_migrations},
     error::*,
     optional_ext::OptionalExt,
     pagination::*,
@@ -29,9 +29,9 @@ pub use {
 
 pub mod prelude {
     pub use {
-        super::{build_error::BuildError, diesel, diesel_async, error::Error, OptionalExt},
+        super::{OptionalExt, build_error::BuildError, diesel, diesel_async, error::Error},
         diesel::migration::MigrationSource,
-        diesel_migrations::{self, embed_migrations, EmbeddedMigrations},
+        diesel_migrations::{self, EmbeddedMigrations, embed_migrations},
     };
 }
 
