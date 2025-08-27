@@ -1,13 +1,17 @@
-use futures_util::TryFutureExt;
-
 use diesel_async::{methods::LoadQuery, return_futures::LoadFuture};
+use futures_util::{TryFutureExt, future::MapOk};
+use pin_project_lite::pin_project;
+use std::task::Poll;
 
 pub const DEFAULT_PAGE_SIZE: i64 = 50;
 
 #[derive(Clone, Debug)]
 pub struct Page<T> {
     pub data: Vec<T>,
-    pub total_count: i64,
+    pub total_count: u32,
+    pub page_count: u32,
+    pub page_size: u32,
+    pub page: u32,
 }
 
 impl<T> Page<T> {
@@ -19,6 +23,9 @@ impl<T> Page<T> {
         Page {
             data: self.data.into_iter().map(f).collect(),
             total_count: self.total_count,
+            page_count: self.page_count,
+            page_size: self.page_size,
+            page: self.page,
         }
     }
 }
@@ -62,7 +69,7 @@ pub type InnerLoadFuture<
     //Q: LoadQuery<'query, diesel_async::AsyncPgConnection, (U, i64)>,
     Q,
     U,
-> = futures_util::future::MapOk<
+> = MapOk<
     LoadFuture<'conn, 'query, Q, diesel_async::AsyncPgConnection, (U, i64)>,
     fn(Vec<(U, i64)>) -> Page<U>,
 >;
@@ -87,12 +94,71 @@ impl<T> PaginatedQuery<T> {
             let data = res.into_iter().map(|x| x.0).collect();
             //let page_count = (total_count as f64 / page_size as f64).ceil() as i64;
 
-            Page { data, total_count }
+            Page {
+                data,
+                total_count: total_count as u32,
+                page: 0,
+                page_size: 0,
+                page_count: 0,
+            }
         }
 
-        diesel_async::RunQueryDsl::load::<(U, i64)>(self, conn).map_ok(convert_to_page)
+        diesel_async::RunQueryDsl::load::<(U, i64)>(self, conn).map_ok(|res| convert_to_page(res))
     }
 }
+
+pin_project! {
+
+struct WrapperFut<'conn, 'query, Q, U>
+where    Q: LoadQuery<'query, diesel_async::AsyncPgConnection, (U, i64)>,
+    {
+    #[pin]
+    inner: LoadFuture<'conn, 'query, Q, diesel_async::AsyncPgConnection, (U, i64)>,
+
+    page: i64,
+    page_size: i64,
+}
+}
+
+impl<'conn, 'query, Q, U> Future for WrapperFut<'conn, 'query, Q, U>
+where
+    Q: LoadQuery<'query, diesel_async::AsyncPgConnection, (U, i64)> + 'query,
+{
+    type Output = Result<Page<U>, crate::Error>;
+
+    fn poll(
+        self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Self::Output> {
+        let page_size = self.page_size;
+        let page = self.page_size;
+
+        let this = self.project();
+        // let shit: Pin<&mut T> = this.inner; // Pinned reference to the field
+
+        match this.inner.poll(cx) {
+            Poll::Ready(Ok(rows)) => {
+                let total_count = rows.first().map(|x| x.1).unwrap_or(0);
+                let data = rows.into_iter().map(|x| x.0).collect();
+                let page_count = (total_count as f64 / page_size as f64).ceil() as u32;
+
+                Poll::Ready(Ok(Page {
+                    data,
+                    total_count: total_count as u32,
+                    page_count,
+                    page: page as u32,
+                    page_size: page_size as u32,
+                }))
+            }
+
+            Poll::Ready(Err(err)) => Poll::Ready(Err(err.into())),
+
+            Poll::Pending => Poll::Pending,
+        }
+    }
+}
+
+//impl Future for WrapperFut {}
 
 impl<T, C> diesel::RunQueryDsl<C> for PaginatedQuery<T> where C: diesel::Connection {}
 
