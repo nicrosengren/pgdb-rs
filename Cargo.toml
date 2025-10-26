@@ -19,6 +19,6 @@ pin-project-lite = "0.2.16"
 
 
 [dependencies.diesel-async]
-version = "0.6"
+version = "0.7"
 default-features = false
 features = [ "deadpool", "postgres", "async-connection-wrapper" ]
