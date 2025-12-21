@@ -7,14 +7,13 @@ mod tls;
 pub mod testing;
 
 use {
-    diesel::{ConnectionError, ConnectionResult},
+    diesel::ConnectionError,
     diesel_async::{
         AsyncPgConnection, SimpleAsyncConnection,
         async_connection_wrapper::AsyncConnectionWrapper,
         pooled_connection::{AsyncDieselConnectionManager, ManagerConfig, deadpool},
     },
     diesel_migrations::MigrationHarness,
-    futures_util::{FutureExt, future::BoxFuture},
     tracing::warn,
 };
 
@@ -52,17 +51,19 @@ impl Pool {
 }
 
 pub struct PoolBuilder {
-    max_connections: usize,
-    migrations: Option<EmbeddedMigrations>,
+    max_connections: Option<usize>,
     reset_db: bool,
+    force_ssl: bool,
+    migrations: Option<EmbeddedMigrations>,
 }
 
 impl Default for PoolBuilder {
     fn default() -> Self {
         Self {
-            max_connections: 10,
-            migrations: None,
+            max_connections: None,
             reset_db: false,
+            force_ssl: true, // force ssl by default
+            migrations: None,
         }
     }
 }
@@ -78,12 +79,26 @@ impl PoolBuilder {
         let url = url.as_ref();
 
         let mut config = ManagerConfig::default();
-        config.custom_setup = Box::new(establish_connection);
+        //config.custom_setup = Box::new(establish_connection);
+
+        // We first set up the way we want rustls to work.
+
+        let tls_connector = tokio_postgres_rustls::MakeRustlsConnect::new(tls::client_config());
+
+        config.custom_setup = Box::new(move |config| {
+            let tls_connector = tls_connector.clone();
+            Box::pin(async move {
+                let (client, conn) = tokio_postgres::connect(config, tls_connector)
+                    .await
+                    .map_err(|e| ConnectionError::BadConnection(e.to_string()))?;
+                AsyncPgConnection::try_from_client_and_connection(client, conn).await
+            })
+        });
 
         let manager =
             AsyncDieselConnectionManager::<AsyncPgConnection>::new_with_config(url, config);
         let pool = deadpool::Pool::<diesel_async::AsyncPgConnection>::builder(manager)
-            .max_size(10)
+            .max_size(self.max_connections.unwrap_or(10))
             .build()?;
 
         // Test connection
@@ -120,8 +135,15 @@ impl PoolBuilder {
         Ok(Pool(pool))
     }
 
+    pub fn with_force_ssl(mut self, force_ssl: bool) -> Self {
+        self.force_ssl = force_ssl;
+        self
+    }
+
     pub fn with_max_connections(mut self, max_connections: usize) -> Self {
-        self.max_connections = max_connections;
+        assert!(0 < max_connections, "max_connections must be larger than 0");
+
+        self.max_connections = Some(max_connections);
         self
     }
 
@@ -129,17 +151,4 @@ impl PoolBuilder {
         self.migrations = Some(migrations);
         self
     }
-}
-
-fn establish_connection(config: &str) -> BoxFuture<'_, ConnectionResult<AsyncPgConnection>> {
-    let fut = async {
-        // We first set up the way we want rustls to work.
-
-        let tls = tokio_postgres_rustls::MakeRustlsConnect::new(tls::client_config());
-        let (client, conn) = tokio_postgres::connect(config, tls)
-            .await
-            .map_err(|e| ConnectionError::BadConnection(e.to_string()))?;
-        AsyncPgConnection::try_from_client_and_connection(client, conn).await
-    };
-    fut.boxed()
 }
