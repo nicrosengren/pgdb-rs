@@ -1,7 +1,4 @@
-use diesel_async::{
-    methods::LoadQuery,
-    scoped_futures::{ScopedBoxFuture, ScopedFutureExt},
-};
+use diesel_async::methods::LoadQuery;
 
 pub const DEFAULT_PAGE_SIZE: i64 = 50;
 
@@ -70,10 +67,10 @@ impl<T> PaginatedQuery<T> {
         self
     }
 
-    pub fn load_page<'query, 'conn, U>(
+    pub async fn load_page<'query, 'conn, U>(
         self,
         conn: &'conn mut diesel_async::AsyncPgConnection,
-    ) -> ScopedBoxFuture<'query, 'conn, Result<Page<U>, diesel::result::Error>>
+    ) -> Result<Page<U>, diesel::result::Error>
     where
         U: Send,
         Self: Send,
@@ -81,25 +78,22 @@ impl<T> PaginatedQuery<T> {
     {
         let page = self.page;
         let page_size = self.page_size;
-        async move {
-            match diesel_async::RunQueryDsl::load::<(U, i64)>(self, conn).await {
-                Err(err) => Err(err),
-                Ok(res) => {
-                    let total_count = res.first().map(|x| x.1).unwrap_or(0);
-                    let data = res.into_iter().map(|x| x.0).collect();
-                    //let page_count = (total_count as f64 / page_size as f64).ceil() as i64;
+        match diesel_async::RunQueryDsl::load::<(U, i64)>(self, conn).await {
+            Err(err) => Err(err),
+            Ok(res) => {
+                let total_count = res.first().map(|x| x.1).unwrap_or(0);
+                let data = res.into_iter().map(|x| x.0).collect();
+                //let page_count = (total_count as f64 / page_size as f64).ceil() as i64;
 
-                    Ok(Page {
-                        data,
-                        total_count: total_count as u32,
-                        page: page as u32,
-                        page_size: page_size as u32,
-                        page_count: (total_count as f32 / page_size as f32).ceil() as u32,
-                    })
-                }
+                Ok(Page {
+                    data,
+                    total_count: total_count as u32,
+                    page: page as u32,
+                    page_size: page_size as u32,
+                    page_count: (total_count as f32 / page_size as f32).ceil() as u32,
+                })
             }
         }
-        .scope_boxed()
     }
 }
 

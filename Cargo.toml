@@ -12,11 +12,11 @@ tokio-postgres = "0.7"
 tokio-postgres-rustls = "0.13"
 
 diesel = { version = "2", default-features = false, features = [ "postgres_backend" ] }
-diesel_migrations = "2.3"
+diesel_migrations = "2"
 tracing = "0.1.40"
 
 
 [dependencies.diesel-async]
-version = "0.7"
+version = "0.9"
 default-features = false
 features = [ "deadpool", "postgres", "async-connection-wrapper" ]
